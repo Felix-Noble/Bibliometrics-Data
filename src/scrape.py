@@ -529,11 +529,11 @@ def process_OpenAlex_from_OAids(scrape_config, oa_ids):
     files = os.listdir(output_dir)
     n_files = len(files)
     temp_df = None
-    batch_done = 1
+    batch_done = 0
     logger.info(f"Gathering details from OpenAlex for {len(oa_ids)} ids in {math.ceil(len(oa_ids) / buffer_size)} batches")
     for batch_end_i in range(buffer_size, len(oa_ids), buffer_size):
         logger.info(f"Starting Batch {batch_done}")
-        batch = OA.get_details_by_oaid(oa_ids[:batch_end_i], OA_query_terms)
+        batch = OA.get_details_by_oaid(oa_ids[(batch_done*buffer_size):batch_end_i], OA_query_terms)
         batch.to_csv(output_dir / f"Batch{n_files+batch_done}.csv", index=False)
         batch_done += 1
 
