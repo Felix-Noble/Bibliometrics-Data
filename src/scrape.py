@@ -543,7 +543,7 @@ if __name__ == "__main__":
     ### Testing ###
 
     dois = ["10.1587/TRANSINF.2014DAP0007", "10.6138/JIT.2015.16.3.20140918"]
-    from .utils.load_config import get_scrape_config
+    from ..utils.load_config import get_scrape_config
     scrape_config = get_scrape_config()
                     
     OPENALEX_BASE_URL = scrape_config["OPENALEX_BASE_URL"]

@@ -159,6 +159,21 @@ def get_scrape_config():
 
     return cfg["scrape"]
 
+def get_integration_config():
+    cfg = _load_config()
+    step_name = cfg["pipeline"]["names"]["integration"]
+    integration_config = cfg[step_name]
+    type_dict = {"input_dir": str,
+                 "output_dir": str,
+                 "main_index_col": str,
+                 "reference_index_col": str,
+                 "citation_index_col": str,
+                 }
+    type_dict = type_dict | general_type_dict
+    config_init_check(integration_config, type_dict, step_name)
+
+    return integration_config
+
 def get_preprocess_config():
     cfg = _load_config()
     step_name = cfg["pipeline"]["names"]["preprocess"]

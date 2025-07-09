@@ -1,7 +1,7 @@
 from src.utils.load_config import get_pipeline_config, get_scrape_config, get_preprocess_config, get_extract_config
 from src.utils.setup_logging import setup_logger
 
-from src.scrape import process_OpenAlex_from_OAids
+from data.scrape import process_OpenAlex_from_OAids
 
 from pathlib import Path
 import pandas as pd

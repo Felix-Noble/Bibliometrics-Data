@@ -1,5 +1,5 @@
 [pipeline]
-journals = ["Nature", "American Chemical Society", "Mind", "Science", "The Lancet", "Cell", "Psychological Review"]
+journals = ["Nature", "American Chemical Society", "Science", "Mind", "The Lancet", "Cell", "Psychological Review"]
 
 [pipeline.log]
 file = "ERROR"
@@ -8,6 +8,7 @@ console = "INFO"
 [pipeline.names]
 pipeline = "pipeline"
 scrape = "scrape"
+integration = "integration"
 preprocess = "preprocess"
 feature_extraction = "feature_extraction"
 
@@ -34,6 +35,11 @@ OpenAlex_queries = ["publication_date", "id", "doi", "type", "open_access", "sou
 [scrape.log]
 console = "INFO"
 file = "ERROR"
+
+[integration]
+main_index_col = "publication_date"
+reference_index_col = "doi"
+citation_index_col = "doi"
 
 [preprocess]
 input_dir = "data/raw/American Chemical Society"
