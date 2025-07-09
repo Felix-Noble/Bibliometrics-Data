@@ -1,0 +1,15 @@
+.vscode/
+data/
+documentation/
+logs/
+papers/
+__pycache__/
+plan.txt
+AcademicAbstracts.egg*/
+build/
+notebooks/
+alpha/
+figures/
+
+scrape_citations.py
+preprocess.py

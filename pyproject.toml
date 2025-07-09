@@ -1,0 +1,22 @@
+[project]
+name = "AcademicAbstracts"
+version = "0.1.0"
+description = "Word embedding pipeline for acaedmic abstrats across time"
+authors = [
+    {name="Felix Noble", email="felix.noble@live.co.uk"}
+    ]
+requires-python = "==3.10"
+
+dependencies = [
+"numpy==1.26",
+"scikit-learn",
+"pandas",
+"toml",
+"sentence-transformers",
+"hf_xet"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+

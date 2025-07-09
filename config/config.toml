@@ -1,0 +1,62 @@
+[pipeline]
+journals = ["Nature", "American Chemical Society", "Mind", "Science", "The Lancet", "Cell", "Psychological Review"]
+
+[pipeline.log]
+file = "ERROR"
+console = "INFO"
+
+[pipeline.names]
+pipeline = "pipeline"
+scrape = "scrape"
+preprocess = "preprocess"
+feature_extraction = "feature_extraction"
+
+[scrape]
+polite_email = "felix.noble@live.co.uk"
+OPENALEX_BASE_URL = "https://api.openalex.org"
+CROSSREF_BASE_URL = "https://api.crossref.org"
+S2_BASE_URL = "https://api.semanticscholar.org/graph/v1"
+S2_API_KEY = ""
+output_dir = "E:/data/abstracts/raw/"
+buffer_size = 1000
+max_retry = 3
+polite_wait = 1.0
+fail_wait = 10.0
+rate_limit_wait = 60.0
+timeout_wait = 15.0
+start_year = 2023
+end_year = 1960
+S2_queries = ['paperId', 'externalIds', 'url', 'title', 'abstract', 'publicationDate', 'journal','isOpenAccess', 'openAccessPdf', 'citationCount', 'referenceCount', 'citations.paperId', 'citations.externalIds']
+
+OpenAlex_queries = ["publication_date", "id", "doi", "type", "open_access", "source", "cited_by_count", 
+                                          "cited_by_percentile_year_OpenAlex", "citation_normalized_percentile_OpenAlex", 
+                                          "referenced_works", "title", "abstract_inverted_index", "topics"]
+[scrape.log]
+console = "INFO"
+file = "ERROR"
+
+[preprocess]
+input_dir = "data/raw/American Chemical Society"
+output_dir = "data/cleaned"
+problem_chars = [")", "(", "[", "]"]
+data_cols = ["year", "publicationDate", "doi", "abstract", "citationCount"]
+cols_to_clean = ["abstract"]
+chunk_size = 500
+buffer_size = 600
+
+[preprocess.log]
+file = "ERROR"
+console = "INFO"
+
+[feature_extraction]
+log_level_console = "INFO"
+log_level_file = "ERROR"
+input_file = "data_clean/American Chemical Society.csv"
+output_dir = "data/train/"
+attributes = ["year", "publicationDate", "abstract", "citationCount"]
+HuggingFace_model_name = "all-MiniLM-L12-v2"
+buffer_size = 1000
+report_interval = 20
+
+[classify]
+placeholder=false
