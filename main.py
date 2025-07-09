@@ -15,7 +15,8 @@ if __name__ == "__main__":
     scrape_output_dir = scrape_config["output_dir"]
     for journal in pipeline_config["journals"]:
         ids = pd.Series([])
-        for file in (scrape_output_dir / journal).glob("*.csv"):
+        for file in list((scrape_output_dir / journal).glob("*.csv"))[7:]:
+            print(f"Processing file: {file}")
             ref_lists = pd.read_csv(file)["referenced_works_OpenAlex"].dropna().apply(ast.literal_eval)
             # TODO: add empty ref lists as None instead of [] so they are dropped with .dropna()
             ref_lists = pd.concat([pd.Series(ls) for ls in ref_lists if len(ls) > 0])
