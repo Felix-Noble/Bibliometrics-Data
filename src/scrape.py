@@ -21,7 +21,7 @@ def _index_scraped_ids(output_dir: Path, id_types:Tuple[str] = ("doi", "id_OpenA
     Returns a dict of all available id's in scraped data.
     """
     ids_found = {k:[] for k in id_types}
-    
+
     logger.info(f"Searching {output_dir} for finished id's")
     logger.debug(f"Searching for {', '.join(id_types)}")
 
@@ -62,14 +62,14 @@ class ResponseManager:
         self.filler_response_time = 1000
         self.response_times = [self.filler_response_time]
 
-    def _adapt_wait_time(self, response):
+    def _adapt_wait_time(self, response:Dict = {}, increase_factor: float = 1.5, decrease_factor: float = 0.9):
        
         response_time = response.get("meta", {}).get("db_response_time_ms", self.filler_response_time) 
         
-        if self.response_times[-1] > response_time:
-            self.polite_wait = self.polite_wait * 1.5
+        if self.response_times[-1] >= response_time:
+            self.polite_wait = self.polite_wait * increase_factor
         else:
-            self.polite_wait = self.polite_wait * 0.9
+            self.polite_wait = self.polite_wait * decrease_factor
         self.response_times.append(response_time)
 
 # --- Handler Classes for Each Data Source ---
@@ -241,6 +241,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                  max_retry: int = 5,
                  polite_wait: float = 0.1,
                  fail_wait: float = 10,
+                 rate_limit_wait: float = 60,
                  timeout: float = 15,
                  ):
         
@@ -252,6 +253,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         self.polite_wait = polite_wait
         self.max_rety = max_retry
         self.fail_wait = fail_wait
+        self.rate_limit_wait = rate_limit_wait
         self.timeout = timeout
 
         self.NA_VALUE = None
@@ -271,9 +273,10 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                         "referenced_works": "referenced_works_OpenAlex",
                         "abstract_inverted_index": "abstract_OpenAlex"
         }
-        self.errors = {404: [],
-                  1: []}
-        
+        self.errors = {
+            404: [],
+                  }
+                
     def unpack_source(self, source):
         source_dict = {"id": source.get("id", self.NA_VALUE),
                        "name": source.get("display_name", self.NA_VALUE),
@@ -410,7 +413,12 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                 try:
                     # The ID from search results is a full URL
                     response = requests.get(f"{self.OPENALEX_BASE_URL}/works/{oaid}", params={'mailto': self.polite_email}, timeout=self.timeout)
-                    if response.status_code in self.errors.keys():
+                    
+                    if response.status_code == 429:
+                        tqdm.write(f"--> Rate Limit hit. Waiting for {self.rate_limit_wait}")
+                        time.sleep(60)
+                        self._adapt_wait_time(increase_factor = 4) 
+                    elif response.status_code in self.errors.keys():
                         self.errors[response.status_code].append(oaid)
                         continue
                 
@@ -460,7 +468,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         """
 
         colnames = ["doi"] + query_terms
-        rows, errors, colnames = self.setup_query_fetch(colnames)
+        rows, colnames = self.setup_query_fetch(colnames)
 
         logger.info(f"\n--- Getting details from OpenAlex for {len(dois)} DOIs ---")
         print(logger.level)
@@ -479,8 +487,8 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
 
                     response = requests.get(work_url, params={'mailto': polite_email}, timeout=self.timeout)
 
-                    if response.status_code in errors.keys():
-                        errors[response.status_code].append(doi)
+                    if response.status_code in self.errors.keys():
+                        self.errors[response.status_code].append(doi)
                         tqdm.write(f"--> Response Error: {response.status_code} for doi - {doi}")
                         break
                     data = response.json()
@@ -506,15 +514,15 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                 except requests.RequestException as e:
                     tries += 1
                     str_e = str(e)
-                    if str_e not in errors.keys():
-                        errors[str_e] = []
-                    errors[str_e].append(doi)
+                    if str_e not in self.errors.keys():
+                        self.errors[str_e] = []
+                    self.errors[str_e].append(doi)
                     time.sleep(self.fail_wait)
 
         self._close_progress_bar()
         logger.info(f"Found details for {len(rows)} papers on OpenAlex via DOI.")
-        if np.any([len(val) for val in errors.values()]):
-            logger.error(errors)
+        if np.any([len(val) for val in self.errors.values()]):
+            logger.error(self.errors)
 
         return pd.DataFrame(rows, columns=colnames)
 
