@@ -276,6 +276,9 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         self.errors = {
             404: [],
                   }
+        
+        self.supported_id_types = {"oaid" : self.get_oaid_url,
+                                   "doi": self.get_doi_url}
                 
     def unpack_source(self, source):
         source_dict = {"id": source.get("id", self.NA_VALUE),
@@ -376,43 +379,40 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         logger.info(f"Finished OpenAlex search. Found {len(results)} works.")
         return results
 
-    def setup_query_fetch(self, colnames):
+    def get_oaid_url(self, oaid:str ):
+        return f"{self.OPENALEX_BASE_URL}/works/{oaid}"
+    
+    def get_doi_url(self, doi: str):
+        url_doi = quote_plus(doi.replace("https://doi.org/", ""))
+        return f"{self.OPENALEX_BASE_URL}/works/doi:{url_doi}"
+    
+    def _main_fetch_loop(self, 
+                         ids : List[str],
+                         query_terms: List[str],
+                         mode: str = "oaid")-> pd.DataFrame:
+        
+        if mode not in self.supported_id_types.keys():
+            raise ValueError(f"ID type not supported, got {mode} expected one of {', '.join(self.supported_id_types.keys())}")
         rows = []
         # TODO: make errors a class attribute 
         # TODO: check for rate limit error and wait 60. 
-
+        colnames = ["id"] + query_terms
         for col in colnames:
             if col in self.format_names.keys():
                 colnames[colnames.index(col)] = self.format_names[col]
 
-        return rows, colnames
+        logger.info(f"--- Getting abstracts from OpenAlex for {len(ids)} papers ---")
+        self._setup_progress_bar(total=len(ids), description="Getting OpenAlex Details")
 
-    def get_details_by_oaid(self, 
-                            open_alex_ids: List[str],
-                            query_terms: List[str],
-                            ) -> pd.DataFrame:
-        """
-        Retrieves abstracts from OpenAlex for a list of OpenAlex IDs.
-
-        Returns:
-            A dictionary mapping OpenAlex ID to its abstract string.
-        """
-        colnames = ["id"] + query_terms
-        rows, colnames = self.setup_query_fetch(colnames)
-
-        logger.info(f"--- Getting abstracts from OpenAlex for {len(open_alex_ids)} papers ---")
-        
-        self._setup_progress_bar(total=len(open_alex_ids), description="Getting OpenAlex Details")
-
-        for i, oaid in enumerate(open_alex_ids):
-            logger.debug(f"{i}-{oaid}")
+        for i, id in enumerate(ids):
+            logger.debug(f"{i}-{id}")
             tries = 0
-            if not oaid or oaid is None or pd.isna(oaid): 
+            if not id or id is None or pd.isna(id): 
                 continue
             while tries < self.max_rety:
                 try:
-                    
-                    response = requests.get(f"{self.OPENALEX_BASE_URL}/works/{oaid}", params={'mailto': self.polite_email}, timeout=self.timeout)
+                    url = self.supported_id_types[mode](id) # get url specific to mode 
+                    response = requests.get(url, params={'mailto': self.polite_email}, timeout=self.timeout)
                     
                     # specialised response error handling
                     if response.status_code == 429:
@@ -420,18 +420,19 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                         time.sleep(60)
                         self._adapt_wait_time(increase_factor = 4) 
                         tries += 1
-                    
+                        continue
+
                     # generalised response error handling 
                     elif response.status_code in self.errors.keys():
                         tqdm.write(f"--> Error | {response.status_code} | Waiting for {self.rate_limit_wait}")
-                        self.errors[response.status_code].append(oaid)
+                        self.errors[response.status_code].append(id)
                         time.sleep(self.fail_wait)
                         tries += 1
                         continue
                 
                     response.raise_for_status()
                     data = response.json()
-                    df_row = [oaid]
+                    df_row = [id]
                     for query in query_terms:
                         # query formatting logic 
 
@@ -446,91 +447,24 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                     tries = self.max_rety + 1
                     self._update_progress_bar()
                     time.sleep(self.polite_wait) # Be polite
+
                 except requests.exceptions.Timeout:
                     tqdm.write("--> Search request timed out.")
+                    tries += 1
+
                 except requests.RequestException as e:
                     tries += 1
                     str_e = str(e)
                     tqdm.write(f"--> Try {tries} failed | {str_e} | response = {response}")
                     if str_e not in self.errors.keys():
                         self.errors[str_e] = []
-                    self.errors[str_e].append(oaid)
+                    self.errors[str_e].append(id)
                     time.sleep(self.fail_wait)
 
         self._close_progress_bar()
         logger.info(f"Found details for {len(rows)} papers on OpenAlex via OpenAlex ID.")
         if np.any([len(val) for val in self.errors.values()]):
             logger.error(self.errors)
-        return pd.DataFrame(rows, columns=colnames)
-    
-    def get_details_by_doi(self, 
-                            dois: List[str],
-                            query_terms: List[str],
-                            ) -> pd.DataFrame:
-        """
-        Retrieves details from OpenAlex for a list of DOIs.
-
-        Returns:
-            A dictionary mapping DOI to its details.
-        """
-
-        colnames = ["doi"] + query_terms
-        rows, colnames = self.setup_query_fetch(colnames)
-
-        logger.info(f"\n--- Getting details from OpenAlex for {len(dois)} DOIs ---")
-        print(logger.level)
-        print("DEBUG logger level")
-        self._setup_progress_bar(total=len(dois), description="Getting OpenAlex Details")
-        for i, doi in enumerate(dois):
-            if not doi or doi is None or pd.isna(doi):
-                continue
-            tries = 0
-            while tries < self.max_rety:
-                
-                # Format the DOI for the URL. Pass the raw DOI, not the full URL.
-                url_doi = quote_plus(doi.replace("https://doi.org/", ""))
-                work_url = f"{OPENALEX_BASE_URL}/works/doi:{url_doi}"
-                try:
-
-                    response = requests.get(work_url, params={'mailto': polite_email}, timeout=self.timeout)
-
-                    if response.status_code in self.errors.keys():
-                        self.errors[response.status_code].append(doi)
-                        tqdm.write(f"--> Response Error: {response.status_code} for doi - {doi}")
-                        break
-                    data = response.json()
-
-                    self._adapt_wait_time(data)
-                    df_row = [doi]
-                    for query in query_terms:
-                        # query formatting logic 
-
-                        query_result = data.get(query, self.NA_VALUE)
-                        if query in self.format_funcs and query_result:
-                            query_result = self.format_funcs[query](query_result)
-
-                        df_row.append(query_result)
-
-                    rows.append(df_row)
-                    
-                    tries = self.max_rety + 1
-                    self._update_progress_bar()
-                    time.sleep(self.polite_wait) # Be polite
-                except requests.exceptions.Timeout:
-                    tqdm.write("--> Search request timed out.")
-                except requests.RequestException as e:
-                    tries += 1
-                    str_e = str(e)
-                    if str_e not in self.errors.keys():
-                        self.errors[str_e] = []
-                    self.errors[str_e].append(doi)
-                    time.sleep(self.fail_wait)
-
-        self._close_progress_bar()
-        logger.info(f"Found details for {len(rows)} papers on OpenAlex via DOI.")
-        if np.any([len(val) for val in self.errors.values()]):
-            logger.error(self.errors)
-
         return pd.DataFrame(rows, columns=colnames)
 
 ###################################
