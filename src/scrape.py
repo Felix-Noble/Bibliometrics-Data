@@ -418,6 +418,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                         tqdm.write(f"--> Rate Limit hit. Waiting for {self.rate_limit_wait}")
                         time.sleep(60)
                         self._adapt_wait_time(increase_factor = 4) 
+                        tries += 1
                     elif response.status_code in self.errors.keys():
                         self.errors[response.status_code].append(oaid)
                         continue
