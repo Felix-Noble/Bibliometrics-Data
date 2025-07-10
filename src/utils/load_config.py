@@ -165,12 +165,13 @@ def get_integration_config():
     integration_config = cfg[step_name]
     type_dict = {"input_dir": str,
                  "output_dir": str,
-                 "main_index_col": str,
-                 "reference_index_col": str,
-                 "citation_index_col": str,
                  }
     type_dict = type_dict | general_type_dict
     config_init_check(integration_config, type_dict, step_name)
+
+    # Return filepaths as Path types
+    for key in ["input_dir", "output_dir"]:
+        integration_config[key] = Path(integration_config[key])
 
     return integration_config
 

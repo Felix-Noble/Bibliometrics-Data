@@ -18,7 +18,7 @@ OPENALEX_BASE_URL = "https://api.openalex.org"
 CROSSREF_BASE_URL = "https://api.crossref.org"
 S2_BASE_URL = "https://api.semanticscholar.org/graph/v1"
 S2_API_KEY = ""
-output_dir = "E:/data/abstracts/raw/"
+output_dir = "E:/data/abstracts/"
 buffer_size = 1000
 max_retry = 3
 polite_wait = 1.0
@@ -37,9 +37,12 @@ console = "INFO"
 file = "ERROR"
 
 [integration]
-main_index_col = "publication_date"
-reference_index_col = "doi"
-citation_index_col = "doi"
+input_dir = "E:/data/abstracts"
+output_dir = "E:/Dropbox/8.Shared Datasets/abstracts_dask"
+
+[integration.log]
+console = "INFO"
+file = "ERROR"
 
 [preprocess]
 input_dir = "data/raw/American Chemical Society"
