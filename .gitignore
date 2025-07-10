@@ -11,5 +11,6 @@ notebooks/
 alpha/
 figures/
 config/
+config.toml
 scrape_citations.py
 preprocess.py
