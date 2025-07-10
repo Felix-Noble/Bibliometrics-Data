@@ -430,7 +430,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
 
                     # generalised response error handling 
                     elif response.status_code in self.errors.keys():
-                        tqdm.write(f"--> Error | {response.status_code} | Waiting for {self.rate_limit_wait}")
+                        tqdm.write(f"--> Error | {response.status_code} | Waiting for {self.fail_wait}")
                         self.errors[response.status_code].append(id)
                         time.sleep(self.fail_wait)
                         tries += 1
