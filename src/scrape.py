@@ -421,6 +421,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                         tries += 1
                     elif response.status_code in self.errors.keys():
                         self.errors[response.status_code].append(oaid)
+                        tries += 1
                         continue
                 
                     response.raise_for_status()
