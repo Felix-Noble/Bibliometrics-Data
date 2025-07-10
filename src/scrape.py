@@ -2,7 +2,7 @@
 import requests
 import time
 import pandas as pd
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from urllib.parse import quote_plus
 from tqdm.auto import tqdm
 import numpy as np
@@ -16,7 +16,20 @@ from src.utils.setup_logging import setup_logger
 logger = logging.getLogger(Path(__file__).stem)
 
 ## Helpers ##
+def _index_scraped_ids(output_dir: Path, id_types:Tuple[str] = ("doi", "id_OpenAlex")):
+    """
+    Returns a dict of all available id's in scraped data.
+    """
+    ids_found = {k:[] for k in id_types}
 
+    for file in output_dir.glob("*.csv"):
+        df = pd.read_csv(file, chunksize = 100)
+        for chunk in df:
+            for row in chunk.itertuples():
+                for id in id_types:
+                    ids_found[id].append(getattr(row, id))
+
+    return {k:np.array(v) for k,v in ids_found.items()}
 
 # --- Base Class for Progress Bars ---
 
@@ -533,7 +546,14 @@ def process_OpenAlex_from_OAids(scrape_config, oa_ids):
     temp_df = None
     batch_done = 0
     logger.info(f"Gathering details from OpenAlex for {len(oa_ids)} ids in {math.ceil(len(oa_ids) / buffer_size)} batches")
+    ids_done = _index_scraped_ids(output_dir)
+    logger.debug(f"Searching {output_dir} for existing scrape data")
+    logger.debug(f"N. Ids before cut{len(oa_ids)}")
+    oa_ids = [x for x in oa_ids if x not in ids_done["id_OpenAlex"]]
+    logger.debug(f"N. Ids after cut{len(oa_ids)}")
+
     for batch_end_i in range(buffer_size, len(oa_ids), buffer_size):
+        
         logger.info(f"Starting Batch {batch_done}")
         batch = OA.get_details_by_oaid(oa_ids[(batch_done*buffer_size):batch_end_i], OA_query_terms)
         batch.to_csv(output_dir / f"Batch{n_files+batch_done}.csv", index=False)

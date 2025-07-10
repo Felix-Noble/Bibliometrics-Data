@@ -1,7 +1,7 @@
 from src.utils.load_config import get_pipeline_config, get_scrape_config, get_preprocess_config, get_extract_config
 from src.utils.setup_logging import setup_logger
 
-from data.scrape import process_OpenAlex_from_OAids
+from src.scrape import process_OpenAlex_from_OAids
 
 from pathlib import Path
 import pandas as pd
@@ -15,13 +15,13 @@ if __name__ == "__main__":
     scrape_output_dir = scrape_config["output_dir"]
     for journal in pipeline_config["journals"]:
         ids = pd.Series([])
-        for file in list((scrape_output_dir / journal).glob("*.csv"))[7:]:
+        for file in list((scrape_output_dir / journal).glob("*.csv"))[0:]:
             print(f"Processing file: {file}")
             ref_lists = pd.read_csv(file)["referenced_works_OpenAlex"].dropna().apply(ast.literal_eval)
             # TODO: add empty ref lists as None instead of [] so they are dropped with .dropna()
             ref_lists = pd.concat([pd.Series(ls) for ls in ref_lists if len(ls) > 0])
             ids = pd.concat([ids, ref_lists])
-        
+        ids = pd.unique(ids)
         scrape_config["output_dir"] = scrape_output_dir / journal / "references"
         process_OpenAlex_from_OAids(scrape_config, ids)
 
