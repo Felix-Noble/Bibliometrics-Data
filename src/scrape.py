@@ -264,6 +264,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         self.format_funcs = {
                         "abstract_inverted_index":self.deinvert_abstract,
                         "source" : self.unpack_source,
+                        "doi" : self.format_doi,
                             }
         
         self.format_names = {
@@ -279,7 +280,10 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         
         self.supported_id_types = {"oaid" : self.get_oaid_url,
                                    "doi": self.get_doi_url}
-                
+        
+    def format_doi(self, doi):
+        return doi.replace("https://doi.org/", "")      
+      
     def unpack_source(self, source):
         source_dict = {"id": source.get("id", self.NA_VALUE),
                        "name": source.get("display_name", self.NA_VALUE),
@@ -441,6 +445,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                         continue
                     elif response.status_code == 404:
                         tqdm.write(f"--> Error | {response.status_code} | {mode} not found, skipping")
+                        self.errors[response.status_code].append(id)
                         break
 
                     # generalised response error handling 
@@ -453,7 +458,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                 
                     response.raise_for_status()
                     data = response.json()
-                    df_row = [id]
+                    df_row = []
                     for query in query_terms:
                         # query formatting logic 
 
@@ -520,16 +525,17 @@ def process_OpenAlex_from_OAids(scrape_config, oa_ids):
     n_files = len(files)
     temp_df = None
     batch_done = 0
-    logger.info(f"Gathering details from OpenAlex for {len(oa_ids)} ids in {math.ceil(len(oa_ids) / buffer_size)} batches")
     ids_done = _index_scraped_ids(output_dir)
     logger.debug(f"Searching {output_dir} for existing scrape data")
     logger.debug(f"N. Ids before cut{len(oa_ids)}")
     oa_ids = [x for x in oa_ids if x not in ids_done["id_OpenAlex"]]
     logger.debug(f"N. Ids after cut{len(oa_ids)}")
+    
+    logger.info(f"Gathering details from OpenAlex for {len(oa_ids)} ids in {math.ceil(len(oa_ids) / buffer_size)} batches")
 
     for batch_end_i in range(buffer_size, len(oa_ids), buffer_size):
         
-        logger.info(f"Starting Batch {batch_done}")
+        logger.info(f"Starting Batch {batch_done+n_files}")
         batch = OA.get_details_by_oaid(oa_ids[(batch_done*buffer_size):batch_end_i], OA_query_terms)
         batch.to_csv(output_dir / f"Batch{n_files+batch_done}.csv", index=False)
         batch_done += 1
@@ -540,7 +546,7 @@ if __name__ == "__main__":
     ### Testing ###
 
     dois = ["10.1587/TRANSINF.2014DAP0007", "10.6138/JIT.2015.16.3.20140918"]
-    from ..utils.load_config import get_scrape_config
+    from utils.load_config import get_scrape_config
     scrape_config = get_scrape_config()
                     
     OPENALEX_BASE_URL = scrape_config["OPENALEX_BASE_URL"]
