@@ -446,6 +446,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                     elif response.status_code == 404:
                         tqdm.write(f"--> Error | {response.status_code} | {mode} not found, skipping")
                         self.errors[response.status_code].append(id)
+                        time.sleep(self.polite_wait)
                         break
 
                     # generalised response error handling 
