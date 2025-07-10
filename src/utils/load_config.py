@@ -114,6 +114,7 @@ def get_pipeline_config():
     step_name = cfg["pipeline"]["names"]["pipeline"]
     pipeline_config = cfg[step_name]
     type_dict = {"journals": (list, str),
+                 "database_loc": str,
                  "names": {"pipeline": str,
                            "scrape": str,
                            "preprocess": str,
@@ -121,6 +122,9 @@ def get_pipeline_config():
     # Add univesally applicable type dicts to specific dict 
     type_dict = type_dict | general_type_dict
     config_init_check(pipeline_config, type_dict, step_name)
+
+    for key in ["database_loc"]:
+        pipeline_config[key] = Path(pipeline_config[key])
 
     return pipeline_config
 
@@ -213,22 +217,17 @@ def get_preprocess_config():
     
     return prep_config
 
-def get_extract_config():
+def get_feature_extract_config():
     cfg = _load_config()
-    extraction_config = cfg["data"]["feature_extraction"]
+    extraction_config = cfg["feature_extraction"]
     step_name = cfg["pipeline"]["names"]["feature_extraction"]
 
-    type_dict = {"input_file": str,
-                 "output_dir": str,
-                 "attributes": list,
-                 "buffer_size": int,
-                 "report_interval": int,
+    type_dict = {
                  "HuggingFace_model_name": str
                  }
     type_dict = type_dict | general_type_dict
     config_init_check(extraction_config, type_dict, step_name)
 
     # Return filepaths as Path types
-    for key in ["input_file", "output_dir"]:
-        extraction_config[key] = Path(extraction_config[key])
+    
     return extraction_config
