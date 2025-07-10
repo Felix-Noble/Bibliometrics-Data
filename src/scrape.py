@@ -15,6 +15,9 @@ from src.utils.setup_logging import setup_logger
 ## Logger ##
 logger = logging.getLogger(Path(__file__).stem)
 
+## Helpers ##
+
+
 # --- Base Class for Progress Bars ---
 
 class ProgressBarManager:
@@ -117,31 +120,6 @@ def search_crossref(journal_name: str,
 
     print(f"Finished CrossRef search. Found {len(results)} works.")
     return results
-
-## OPEN ALEX helper
-def deinvert_abstract(inverted_abstract: Optional[Dict]) -> Optional[str]:
-    """
-    Converts an OpenAlex inverted abstract into a plain text string.
-    See: https://docs.openalex.org/how-to-use-the-api/get-single-entities/get-single-works#the-abstract
-    """
-    if not inverted_abstract:
-        return None
-
-    # The abstract is a list of words. The index gives the position of each word.
-    # We create a list of the correct size and fill it with the words.
-    abstract_length = max([max(positions) for positions in inverted_abstract.values()]) + 1
-    
-    abstract_list = [''] * abstract_length
-    try: 
-        for word, positions in inverted_abstract.items():
-            for pos in positions:
-                abstract_list[pos] = word
-    except:
-        print(abstract_length)
-        print(inverted_abstract)
-        quit()
-        
-    return ' '.join(abstract_list)
 
 # SEMANTIC SCHOLAR (S2)
 
@@ -266,7 +244,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         }
 
         self.format_funcs = {
-                        "abstract_inverted_index":deinvert_abstract,
+                        "abstract_inverted_index":self.deinvert_abstract,
                         "source" : self.unpack_source,
                             }
         
@@ -287,6 +265,30 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         
         return source_dict
     
+    def deinvert_abstract(self, inverted_abstract: Optional[Dict]) -> Optional[str]:
+        """
+        Converts an OpenAlex inverted abstract into a plain text string.
+        See: https://docs.openalex.org/how-to-use-the-api/get-single-entities/get-single-works#the-abstract
+        """
+        if not inverted_abstract:
+            return None
+
+        # The abstract is a list of words. The index gives the position of each word.
+        # We create a list of the correct size and fill it with the words.
+        abstract_length = max([max(positions) for positions in inverted_abstract.values()]) + 1
+        
+        abstract_list = [''] * abstract_length
+        try: 
+            for word, positions in inverted_abstract.items():
+                for pos in positions:
+                    abstract_list[pos] = word
+        except:
+            print(abstract_length)
+            print(inverted_abstract)
+            quit()
+            
+        return ' '.join(abstract_list)
+
     def search_openalex(self, 
                         journal_name: str, 
                         publication_year: int, 

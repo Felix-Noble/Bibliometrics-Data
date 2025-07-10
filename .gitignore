@@ -10,6 +10,6 @@ build/
 notebooks/
 alpha/
 figures/
-
+config/
 scrape_citations.py
 preprocess.py
