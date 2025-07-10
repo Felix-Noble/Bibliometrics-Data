@@ -390,7 +390,12 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                          ids : List[str],
                          query_terms: List[str],
                          mode: str = "oaid")-> pd.DataFrame:
-        
+        """
+        Retrieves abstracts from OpenAlex for a list of OpenAlex IDs.
+
+        Returns:
+            A dictionary mapping OpenAlex ID to its abstract string.
+        """
         if mode not in self.supported_id_types.keys():
             raise ValueError(f"ID type not supported, got {mode} expected one of {', '.join(self.supported_id_types.keys())}")
         rows = []
@@ -451,7 +456,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                 except requests.exceptions.Timeout:
                     tqdm.write("--> Search request timed out.")
                     tries += 1
-
+                    
                 except requests.RequestException as e:
                     tries += 1
                     str_e = str(e)
@@ -466,6 +471,19 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         if np.any([len(val) for val in self.errors.values()]):
             logger.error(self.errors)
         return pd.DataFrame(rows, columns=colnames)
+
+    def get_details_by_oaid(self, 
+                            open_alex_ids: List[str],
+                            query_terms: List[str],
+                            ) -> pd.DataFrame:
+       return self._main_fetch_loop(open_alex_ids, query_terms, mode = "oaid")
+        
+    def get_details_by_doi(self, 
+                            dois: List[str],
+                            query_terms: List[str],
+                            ) -> pd.DataFrame:
+        return self._main_fetch_loop(dois, query_terms, mode = "oaid")
+
 
 ###################################
 ### --- Execution functions --- ###
