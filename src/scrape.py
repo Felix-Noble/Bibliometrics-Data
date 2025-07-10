@@ -21,6 +21,9 @@ def _index_scraped_ids(output_dir: Path, id_types:Tuple[str] = ("doi", "id_OpenA
     Returns a dict of all available id's in scraped data.
     """
     ids_found = {k:[] for k in id_types}
+    
+    logger.info(f"Searching {output_dir} for finished id's")
+    logger.debug(f"Searching for {', '.join(id_types)}")
 
     for file in output_dir.glob("*.csv"):
         df = pd.read_csv(file, chunksize = 100)
