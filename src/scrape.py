@@ -283,7 +283,8 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
     def unpack_source(self, source):
         source_dict = {"id": source.get("id", self.NA_VALUE),
                        "name": source.get("display_name", self.NA_VALUE),
-                       "is_open_access" : source.get("is_oa")}
+                       "is_open_access" : source.get("is_oa"),
+                       "database": "OpenAlex"}
         
         return source_dict
     
@@ -483,7 +484,6 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                             query_terms: List[str],
                             ) -> pd.DataFrame:
         return self._main_fetch_loop(dois, query_terms, mode = "oaid")
-
 
 ###################################
 ### --- Execution functions --- ###
