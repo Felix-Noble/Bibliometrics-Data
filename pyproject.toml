@@ -1,14 +1,14 @@
 [project]
 name = "AcademicAbstracts"
-version = "0.1.0"
+version = "0.2.0"
 description = "Word embedding pipeline for acaedmic abstrats across time"
 authors = [
     {name="Felix Noble", email="felix.noble@live.co.uk"}
     ]
-requires-python = "==3.10"
+requires-python = ">=3.10"
 
 dependencies = [
-"numpy==1.26",
+"numpy",
 "scikit-learn",
 "pandas",
 "toml",
