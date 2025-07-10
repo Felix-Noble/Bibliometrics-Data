@@ -411,16 +411,21 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                 continue
             while tries < self.max_rety:
                 try:
-                    # The ID from search results is a full URL
+                    
                     response = requests.get(f"{self.OPENALEX_BASE_URL}/works/{oaid}", params={'mailto': self.polite_email}, timeout=self.timeout)
                     
+                    # specialised response error handling
                     if response.status_code == 429:
-                        tqdm.write(f"--> Rate Limit hit. Waiting for {self.rate_limit_wait}")
+                        tqdm.write(f"--> Error | {response.status_code} | Rate limit, waiting for {self.rate_limit_wait}")
                         time.sleep(60)
                         self._adapt_wait_time(increase_factor = 4) 
                         tries += 1
+                    
+                    # generalised response error handling 
                     elif response.status_code in self.errors.keys():
+                        tqdm.write(f"--> Error | {response.status_code} | Waiting for {self.rate_limit_wait}")
                         self.errors[response.status_code].append(oaid)
+                        time.sleep(self.fail_wait)
                         tries += 1
                         continue
                 
