@@ -387,6 +387,18 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         url_doi = quote_plus(doi.replace("https://doi.org/", ""))
         return f"{self.OPENALEX_BASE_URL}/works/doi:{url_doi}"
     
+    def get_details_by_oaid(self, 
+                            open_alex_ids: List[str],
+                            query_terms: List[str],
+                            ) -> pd.DataFrame:
+       return self._main_fetch_loop(open_alex_ids, query_terms, mode = "oaid")
+        
+    def get_details_by_doi(self, 
+                            dois: List[str],
+                            query_terms: List[str],
+                            ) -> pd.DataFrame:
+        return self._main_fetch_loop(dois, query_terms, mode = "doi")
+    
     def _main_fetch_loop(self, 
                          ids : List[str],
                          query_terms: List[str],
@@ -402,7 +414,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         rows = []
         # TODO: make errors a class attribute 
         # TODO: check for rate limit error and wait 60. 
-        colnames = ["id"] + query_terms
+        colnames = query_terms
         for col in colnames:
             if col in self.format_names.keys():
                 colnames[colnames.index(col)] = self.format_names[col]
@@ -423,10 +435,13 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                     # specialised response error handling
                     if response.status_code == 429:
                         tqdm.write(f"--> Error | {response.status_code} | Rate limit, waiting for {self.rate_limit_wait}")
-                        time.sleep(60)
+                        time.sleep(self.rate_limit_wait)
                         self._adapt_wait_time(increase_factor = 4) 
                         tries += 1
                         continue
+                    elif response.status_code == 404:
+                        tqdm.write(f"--> Error | {response.status_code} | {mode} not found, skipping")
+                        break
 
                     # generalised response error handling 
                     elif response.status_code in self.errors.keys():
@@ -473,17 +488,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
             logger.error(self.errors)
         return pd.DataFrame(rows, columns=colnames)
 
-    def get_details_by_oaid(self, 
-                            open_alex_ids: List[str],
-                            query_terms: List[str],
-                            ) -> pd.DataFrame:
-       return self._main_fetch_loop(open_alex_ids, query_terms, mode = "oaid")
-        
-    def get_details_by_doi(self, 
-                            dois: List[str],
-                            query_terms: List[str],
-                            ) -> pd.DataFrame:
-        return self._main_fetch_loop(dois, query_terms, mode = "oaid")
+    
 
 ###################################
 ### --- Execution functions --- ###
