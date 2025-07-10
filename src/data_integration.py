@@ -18,7 +18,11 @@ logger = logging.getLogger(Path(__file__).stem)
 # 1.3: Export Functionality (the export_to_dash_db function itself)
 # 1.4: Idempotency (using the 'if_exists' parameter)
 
-def export_csv_to_dask(input_dirs: List[Path], output_dir: Path, index_col: str ="doi", partition_col: str ="publication_date"):
+def export_csv_to_dask(input_dirs: List[Path], 
+                       output_dir: Path, 
+                       index_col: str ="doi", 
+                       partition_col: str = "",
+                       publication_date_col: str ="publication_date"):
     """
     Reads all CSV files from an input directory using Dask, and saves them
     as a single, partitioned Parquet dataset.
@@ -33,50 +37,52 @@ def export_csv_to_dask(input_dirs: List[Path], output_dir: Path, index_col: str 
 
     # The output directory should not exist before writing, Dask handles creation.
     if os.path.exists(output_dir):
-        print(f"Warning: Output directory '{output_dir}' already exists.")
-        # In a real workflow, you might want to delete it first:
-        # import shutil
-        # shutil.rmtree(output_dir)
-        # print("Removed existing output directory.")
-
-    # --- 2. Use Dask to read all CSV files ---
-    # The '*' is a wildcard that tells Dask to read all files ending in .csv
-    # This is much more memory-efficient for very large datasets than reading
-    # them all with pandas first.
+        logger.warning(f"Warning: Output directory '{output_dir}' already exists.")
+    if not partition_col and not publication_date_col:
+        raise ValueError("Expected at least one of parition_col or publication_date_col to not be empty")
+    # --- 2. Read all CSV files ---
     csv_paths = []
     for path in input_dirs:
         csv_paths += list(path.glob("*.csv"))
         logger.info(f"Indexing all CSVs from: {path}")
     logger.debug(f"Found CSV paths: {csv_paths}")
-
+    
     try:
         # Assuming the partition column exists and can be inferred.
         # For date columns, it's good practice to specify the dtype.
         # If your partition column is a date, Dask might need help parsing it.
         # ddf = dd.read_csv(csv_path, parse_dates=[partition_col])
-        ddf = dd.read_csv(csv_paths, dtype={'citation_count_OpenAlex': 'float64',
+        ddf = dd.read_csv(csv_paths, 
+                          dtype={'citation_count_OpenAlex': 'float64',
                                             "referenced_works_OpenAlex": 'object'})
         ddf = ddf.dropna(subset=[index_col])
+        if not partition_col and publication_date_col:
+            partition_col = "publication_year"
+
+            ddf[publication_date_col] = dd.to_datetime(ddf[publication_date_col])
+            ddf["publication_year"] = ddf[publication_date_col].dt.year.astype(int)
+            # ddf["publication_year"] = ddf["publication_year"].astype(int)
+            
         ddf = ddf.set_index(index_col)
 
     except Exception as e:
-        print(f"Error reading CSV files with Dask: {e}")
+        logger.error(f"{e}")
         return
 
     # --- 3. Check if the partition column exists ---
     if partition_col not in ddf.columns:
-        print(f"Error: Partition column '{partition_col}' not found in the data.")
-        print(f"Available columns are: {list(ddf.columns)}")
+        logger.error(f"Error: Partition column '{partition_col}' not found in the data.")
+        logger.error(f"Available columns are: {list(ddf.columns)}")
         return
 
-    print(f"Data loaded. Total rows (estimated): {len(ddf)}")
-    print(f"Columns: {list(ddf.columns)}")
+    logger.info(f"Data loaded. Total rows (estimated): {len(ddf)}")
+    logger.info(f"Columns: {list(ddf.columns)}")
 
     # --- 4. Write to Partitioned Parquet ---
     # Dask handles all the complexity of creating the directory structure
     # and writing the data in parallel.
-    print(f"\nWriting data to partitioned Parquet format in '{output_dir}'...")
-    print(f"Partitioning by column: '{partition_col}'")
+    logger.info(f"\nWriting data to partitioned Parquet format in '{output_dir}'...")
+    logger.info(f"Partitioning by column: '{partition_col}'")
 
     try:
         # This is the key command. Dask does all the heavy lifting.
@@ -84,12 +90,12 @@ def export_csv_to_dask(input_dirs: List[Path], output_dir: Path, index_col: str 
         ddf.to_parquet(
             output_dir,
             engine='pyarrow',
-            write_index=False,
+            write_index=True,
             partition_on=[partition_col]
         )
-        print(f"\n✅ Success! Data converted and saved to '{output_dir}'")
+        logger.info(f"\n✅ Success! Data converted and saved to '{output_dir}'")
     except Exception as e:
-        print(f"An error occurred during Parquet conversion: {e}")
+        logger.error(f"An error occurred during Parquet conversion: {e}")
 
 ## RUN ##
 def run_main_data_integration_export(config):
@@ -110,7 +116,9 @@ def run_main_data_integration_export(config):
     output_dir_secondary = output_dir / "database_idx_date"
 
     # create main db
-    export_csv_to_dask(directories, output_dir_main, index_col="doi", partition_col="publication_date")
+    export_csv_to_dask(directories, output_dir_main, 
+                       index_col="doi", 
+                       publication_date_col="publication_date")
 
     ### do this for the reference dir also
 if __name__ == "__main__":
