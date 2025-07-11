@@ -13,7 +13,9 @@ dependencies = [
 "pandas",
 "toml",
 "sentence-transformers",
-"hf_xet"
+"hf_xet",
+"dask",
+"dask[distributed]"
 ]
 
 [build-system]
