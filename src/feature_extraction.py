@@ -12,7 +12,8 @@ import numpy as np
 from pathlib import Path
 import logging 
 from sentence_transformers import SentenceTransformer
-from dask.distributed import Client, LocalCluster
+from dask.distributed import Client, LocalCluster, progress
+from dask.diagnostics import ProgressBar
 
 logger = logging.getLogger(Path(__file__).stem)
 
@@ -72,13 +73,16 @@ if __name__ == "__main__":
     setup_logger(logger, config["log"])
 
     client = Client(LocalCluster())
+    logger.info(f"Initialised Client: {client}")
     model_future = client.scatter(model, broadcast=True)
 
     ddf = dd.read_parquet(pipeline_config["database_loc"])
     ddf["publication_date"] = dd.to_datetime(ddf["publication_date"])
 
     ddf = ddf.set_index("publication_date")
-
+    ddf = ddf.dropna(subset = ["citation_count_OpenAlex"])
+    #TODO: adapt this based on the size of the ddf on disk to ensure ~100MB per partition
+    ddf = ddf.repartition(npartitions = 64)
     # meta = column structure of returned df
     #meta = ddf._meta.copy().drop(columns = ["publication_year"])
     #meta["median_citation_count_year"] = pd.Series(dtype='float64')
@@ -90,7 +94,7 @@ if __name__ == "__main__":
     #        meta=meta,
     #        include_groups = False)
     #result_ddf = result_ddf.reset_index()
-    yearly_stats = ddf.groupby("publication_year").agg(
+    yearly_stats = ddf.groupby("publication_year", observed=True).agg(
             median_citation_count_year = ('citation_count_OpenAlex', 'median'),
             mean_citation_count_year = ('citation_count_OpenAlex', 'mean'),
             std_citation_count_year = ('citation_count_OpenAlex', 'std')
@@ -109,45 +113,56 @@ if __name__ == "__main__":
     
     problem_chars = [")", "(", "[", "]", "}", "{"]
     def clean_func(text):
-        temp = text.lower()
+        temp = text.lower() # lower case all text
         # text = text.translate(str.maketrans('', '', string.punctuation))
         # temp = temp.translate(str.maketrans('', '', string.digits))
+        
         for char in problem_chars:
-            temp = temp.replace(char, "")
+            temp = temp.replace(char, " ") # remove problem chars 
+        temp = " ".join(temp.split()) # remove extra white space 
         return temp
     
     # model_name = "all-MiniLM-L6-v2"
     def _get_embeddings_HuggingFace(texts: pd.Series, model: SentenceTransformer):
         # model = SentenceTransformer(model_name_or_path = model_name) # initialist SBERT model
         #TODO: add text cleaning to the worker jobs
-        # texts = texts.apply(clean_func)
+        texts = texts.apply(clean_func)
+        #texts = texts.fillna('').astype(str).tolist()
         text_list = texts.astype(str).tolist()
         vectors = model.encode(text_list, convert_to_numpy=True)
-        return pd.Series(list(vectors), index=texts.index)
+        return pd.DataFrame(vectors, columns = [f'embedding_{i}' for i in range(vectors.shape[1])], index=texts.index) 
     
     # clean_text = result_ddf["abstract_OpenAlex"].apply(clean_func, meta=meta)
-    
-    embeddings = result_ddf["abstract_OpenAlex"].map_partitions(
 
+    N_FEATURES = model.get_sentence_embedding_dimension()
+
+    embedding_columns = [f'embedding_{i}' for i in range(N_FEATURES)]
+    
+    meta_df = pd.DataFrame(columns=embedding_columns, dtype=np.float32)
+    del N_FEATURES, embedding_columns
+
+    result_ddf = result_ddf.dropna(subset=["abstract_OpenAlex"]) 
+    embeddings = result_ddf["abstract_OpenAlex"].map_partitions(
         _get_embeddings_HuggingFace, 
         model_future,
-
-        meta=('embeddings', 'object'))
+        meta=meta_df)
     
-    result_ddf["embeddings"] = embeddings
-
-    result_ddf = result_ddf.persist()
-    logger.info("Saving Resultsddf to Paraquet")
-
+    result_ddf = result_ddf.merge(embeddings, left_index=True, right_index=True)
+    
+    logger.info("Computing Embeddings")
+    result_ddf = result_ddf.persist() 
+    progress(result_ddf) 
     result_ddf = result_ddf.reset_index()
-
+    
+    logger.info("Saving Results")
     result_ddf.to_parquet(
             pipeline_config["database_loc"].parent / "temp",
             engine='pyarrow',
             write_index=False,
             overwrite=True,
             partition_on=["publication_year"]
-        )
+            )
+
     logger.info("Paraquet saved")
 
     logger.info("Closing Dask Client")
