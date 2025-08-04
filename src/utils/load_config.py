@@ -114,7 +114,10 @@ def get_pipeline_config():
     step_name = cfg["pipeline"]["names"]["pipeline"]
     pipeline_config = cfg[step_name]
     type_dict = {"journals": (list, str),
-                 "database_loc": str,
+                 "integrated_db_loc": str,
+                 "features_db_loc": str,
+                 "start_year":int,
+                 "end_year":int,
                  "names": {"pipeline": str,
                            "scrape": str,
                            "preprocess": str,
@@ -123,7 +126,7 @@ def get_pipeline_config():
     type_dict = type_dict | general_type_dict
     config_init_check(pipeline_config, type_dict, step_name)
 
-    for key in ["database_loc"]:
+    for key in ["integrated_db_loc", "features_db_loc"]:
         pipeline_config[key] = Path(pipeline_config[key])
 
     return pipeline_config
@@ -147,7 +150,7 @@ def get_scrape_config():
                  "start_year": int,
                  "end_year": int,
                  "S2_queries" : (list, str),
-                 "OpenAlex_queries": (list, str)
+                 "OpenAlex_queries": (list, str),
                  }
 
     type_dict = type_dict | general_type_dict
@@ -169,6 +172,7 @@ def get_integration_config():
     integration_config = cfg[step_name]
     type_dict = {"input_dir": str,
                  "output_dir": str,
+                 "journal":str,
                  }
     type_dict = type_dict | general_type_dict
     config_init_check(integration_config, type_dict, step_name)
@@ -223,7 +227,9 @@ def get_feature_extract_config():
     step_name = cfg["pipeline"]["names"]["feature_extraction"]
 
     type_dict = {
-                 "HuggingFace_model_name": str
+                 "HuggingFace_model_name": str,
+                 "journal": str,
+
                  }
     type_dict = type_dict | general_type_dict
     config_init_check(extraction_config, type_dict, step_name)
@@ -231,3 +237,20 @@ def get_feature_extract_config():
     # Return filepaths as Path types
     
     return extraction_config
+
+def get_data_staging_config():
+    cfg = _load_config()
+    step_name = "Staging"
+    pipeline_config = cfg["staging"]
+    type_dict = {
+        "database_loc": str,
+    }
+                 
+    # Add univesally applicable type dicts to specific dict 
+    type_dict = type_dict | general_type_dict
+    config_init_check(pipeline_config, type_dict, step_name)
+
+    for key in ["database_loc"]:
+        pipeline_config[key] = Path(pipeline_config[key])
+
+    return pipeline_config
