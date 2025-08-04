@@ -1,6 +1,6 @@
 [project]
 name = "AcademicAbstracts"
-version = "0.2.0"
+version = "0.2.1"
 description = "Word embedding pipeline for acaedmic abstrats across time"
 authors = [
     {name="Felix Noble", email="felix.noble@live.co.uk"}
@@ -15,7 +15,7 @@ dependencies = [
 "sentence-transformers",
 "hf_xet",
 "dask",
-"dask[distributed]"
+"dask[distributed]",
 ]
 
 [build-system]
