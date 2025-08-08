@@ -127,7 +127,8 @@ def get_pipeline_config():
     config_init_check(pipeline_config, type_dict, step_name)
 
     for key in ["integrated_db_loc", "features_db_loc"]:
-        pipeline_config[key] = Path(pipeline_config[key])
+        pipeline_config[key] = Path(os.path.expanduser(pipeline_config[key]))
+
 
     return pipeline_config
 
@@ -162,7 +163,7 @@ def get_scrape_config():
     
     # Type alterations #
     for key in ["output_dir"]:
-        scrape_config[key] = Path(scrape_config[key])
+        scrape_config[key] = Path(os.path.expanduser(scrape_config[key]))
 
     return cfg["scrape"]
 

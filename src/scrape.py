@@ -11,21 +11,34 @@ import logging
 import math
 from pathlib import Path
 from src.utils.setup_logging import setup_logger
+import ast
 
 ## Logger ##
 logger = logging.getLogger(Path(__file__).stem)
 
 ## Helpers ##
-def _index_scraped_ids(output_dir: Path, id_types:Tuple[str] = ("doi", "id_OpenAlex")):
+def literal_eval_safe(json_object):
+            try:
+                return ast.literal_eval(json_object) 
+            except:
+                return pd.NA
+            
+def _index_scraped_ids(output_dir: Path, id_types:Tuple[str] = ("doi", "id_OpenAlex"), parent=False):
     """
     Returns a dict of all available id's in scraped data.
     """
     ids_found = {k:[] for k in id_types}
 
-    logger.info(f"Searching {output_dir} for finished id's")
+    
+    if parent:
+        for _ in range(parent):
+            output_dir = output_dir.parent
+
+    logger.info(f"Recursively searching {output_dir} for finished id's")
     logger.debug(f"Searching for {', '.join(id_types)}")
 
-    for file in output_dir.glob("*.csv"):
+    for file in output_dir.rglob("*.csv"):
+        logger.debug(file)
         df = pd.read_csv(file, chunksize = 100)
         for chunk in df:
             for row in chunk.itertuples():
@@ -237,6 +250,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
     """Handles all interactions with the OpenAlex API."""    
     def __init__(self,
                  OPENALEX_BASE_URL: str,
+                 API_KEY : str,
                  polite_email,
                  max_retry: int = 5,
                  polite_wait: float = 0.1,
@@ -249,6 +263,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         ResponseManager.__init__(self)
 
         self.OPENALEX_BASE_URL = OPENALEX_BASE_URL
+        self.api_key = API_KEY
         self.polite_email = polite_email
         self.polite_wait = polite_wait
         self.max_rety = max_retry
@@ -260,6 +275,9 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         self.headers = { # set headers to present as browser 
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
         }
+        self.headers = {
+    'User-Agent': 'MyAcademicProject/1.0 (mailto:felix.noble@live.co.uk)'
+}
 
         self.format_funcs = {
                         "abstract_inverted_index":self.deinvert_abstract,
@@ -309,7 +327,8 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
             for word, positions in inverted_abstract.items():
                 for pos in positions:
                     abstract_list[pos] = word
-        except:
+        except Exception as e:
+            print(f"Deinvert failed: {e}")
             print(abstract_length)
             print(inverted_abstract)
             quit()
@@ -332,8 +351,13 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         
         # 1. Find the journal's OpenAlex ID
         journal_search_url = f"{self.OPENALEX_BASE_URL}/journals?search={quote_plus(journal_name)}"
+        # journal_search_url = f"{self.OPENALEX_BASE_URL}/works?"
         try:
-            response = requests.get(journal_search_url, params={'mailto': self.polite_email}, timeout=self.timeout)
+            response = requests.get(journal_search_url, params={
+                # "api_key": self.api_key,
+                'mailto': self.polite_email,
+                "search": quote_plus(journal_name)
+                }, timeout=self.timeout, headers=self.headers)
             response.raise_for_status()
             journal_data = response.json()
             if not journal_data.get('results'):
@@ -347,8 +371,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
 
         # 2. Fetch works using the journal ID and year
         works_url = f"{self.OPENALEX_BASE_URL}/works"
-        filters = f"host_venue.id:{journal_id},publication_year:{publication_year}"
-        
+        # filters = f"locations.source.id::{journal_id},publication_year:{publication_year}"
         self._setup_progress_bar(total=max_results, description=f"Searching OpenAlex for {journal_name}-{publication_year}")
         results = []
         cursor = "*"
@@ -356,12 +379,15 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         while cursor and len(results) < max_results:
             try:
                 params = {
-                    'filter': filters,
+                    #"api_key" : self.api_key,
+                    'filter': [
+                            f'locations.source.id:{journal_id}',
+                            f'publication_year:{publication_year}'],
                     'per_page': min(10, max_results - len(results)),
                     'cursor': cursor,
                     'mailto': self.polite_email
                 }
-                response = requests.get(works_url, params=params, headers=self.headers, timeout=self.timeout)
+                response = requests.get(works_url, params=params, headers=self.headers,timeout=self.timeout)
                 response.raise_for_status()
                 data = response.json()
                 
@@ -418,7 +444,7 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         rows = []
         # TODO: make errors a class attribute 
         # TODO: check for rate limit error and wait 60. 
-        colnames = query_terms
+        colnames = query_terms.copy()
         for col in colnames:
             if col in self.format_names.keys():
                 colnames[colnames.index(col)] = self.format_names[col]
@@ -462,8 +488,9 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
                     df_row = []
                     for query in query_terms:
                         # query formatting logic 
-
+                        logger.debug(f"query | {query}")
                         query_result = data.get(query, self.NA_VALUE)
+                        logger.debug(f"query result| {query_result}")
                         if query in self.format_funcs and query_result:
                             query_result = self.format_funcs[query](query_result)
 
@@ -492,13 +519,99 @@ class OpenAlexHandler(ProgressBarManager, ResponseManager):
         logger.info(f"Found details for {len(rows)} papers on OpenAlex via OpenAlex ID.")
         if np.any([len(val) for val in self.errors.values()]):
             logger.error(self.errors)
+            for val in self.errors.values():
+                val = val.clear()
         return pd.DataFrame(rows, columns=colnames)
-
-    
 
 ###################################
 ### --- Execution functions --- ###
 ###################################
+
+def search_OpenAlex_journal_year(scrape_config):
+    setup_logger(logger, scrape_config["log"])
+    for item in ["journal", "year"]:
+        if item not in scrape_config.keys():
+            raise ValueError(f"Provide {item} value from main loop")
+        
+    CROSSREF_BASE_URL =scrape_config["CROSSREF_BASE_URL"]
+    S2_BASE_URL = scrape_config["S2_BASE_URL"]
+    S2_API_KEY = scrape_config["S2_API_KEY"]
+    #TODO: rename S2 to OpenAlex
+    buffer_size = scrape_config["buffer_size"]
+    
+    journal = scrape_config["journal"]
+    year = scrape_config["year"]
+
+    output_dir = scrape_config["output_dir"] / journal
+    
+    OA_query_terms = scrape_config["OpenAlex_queries"]
+
+    OA = OpenAlexHandler(OPENALEX_BASE_URL = scrape_config["OPENALEX_BASE_URL"], 
+                         API_KEY=S2_API_KEY,
+                         polite_email = scrape_config["polite_email"], 
+                         max_retry = scrape_config["max_retry"],
+                         polite_wait = scrape_config["polite_wait"],
+                         fail_wait = scrape_config["fail_wait"],
+                         timeout = scrape_config["timeout_wait"],
+                         )
+    
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir / "references", exist_ok=True)
+    os.makedirs(output_dir / "citations", exist_ok=True)
+    logger.info(f"Starting Scrape | Saving to : {output_dir}")
+    files = os.listdir(output_dir)
+    n_files = len(files)
+    batch_done = 0
+
+    searched_ids = OA.search_openalex(journal, year)
+    finished_ids = _index_scraped_ids(output_dir, ("doi", "id_OpenAlex"))
+    ids_to_search = {"doi": [],
+                     "id_OpenAlex":[]}
+    
+    for item in searched_ids:
+        novel = True
+        for key in ids_to_search.keys():
+            if key in item.keys():
+                if item[key] in finished_ids[key]:
+                    novel = False
+        
+        if novel:
+            for key in ids_to_search.keys():
+                ids_to_search[key].append(item[key])
+
+    oaids_to_search = ids_to_search["id_OpenAlex"]
+    
+    ref_ids = pd.Series([])
+    logger.info(f"Finding paper details for {len(oaids_to_search)} papers")
+    for batch_end_i in range(buffer_size, len(oaids_to_search), buffer_size):
+        logger.info(f"Starting Batch {batch_done+n_files}")
+        batch = OA.get_details_by_oaid(oaids_to_search[(batch_done*buffer_size):batch_end_i], OA_query_terms)
+        batch.to_csv(output_dir / f"Batch{n_files+batch_done}.csv", index=False)
+        batch_done += 1
+            
+        new_ref_ids = batch["referenced_works_OpenAlex"].dropna().apply(literal_eval_safe).dropna()
+        # TODO: add empty ref lists as None instead of [] so they are dropped with .dropna()
+        new_ref_ids = [pd.Series(ls) for ls in new_ref_ids if len(ls) > 0]
+        if len(new_ref_ids) > 1:
+            ref_ids = pd.concat(new_ref_ids)
+
+    files = os.listdir(output_dir / "references")
+    n_files = len(files)
+    batch_done = 0
+    
+    finished_ids = _index_scraped_ids(output_dir/ "references", ("doi", "id_OpenAlex"))
+    
+    ref_ids = [x for x in ref_ids if x not in finished_ids["id_OpenAlex"]]
+
+    logger.info(f"Finding paper details for {len(ref_ids)} papers referenced in search")
+
+    for batch_end_i in range(buffer_size, len(ref_ids), buffer_size):
+            logger.info(f"Starting References Batch {batch_done+n_files}")
+            batch = OA.get_details_by_oaid(ref_ids[(batch_done*buffer_size):batch_end_i], OA_query_terms)
+            batch.to_csv(output_dir / "references" /f"Batch{n_files+batch_done}.csv", index=False)
+            batch_done += 1
+
+    return True
 
 def process_OpenAlex_from_OAids(scrape_config, oa_ids):
     setup_logger(logger, scrape_config["log"])
@@ -513,7 +626,8 @@ def process_OpenAlex_from_OAids(scrape_config, oa_ids):
     output_dir = scrape_config["output_dir"]
     OA_query_terms = scrape_config["OpenAlex_queries"]
     
-    OA = OpenAlexHandler(OPENALEX_BASE_URL = scrape_config["OPENALEX_BASE_URL"], 
+    OA = OpenAlexHandler(OPENALEX_BASE_URL = scrape_config["OPENALEX_BASE_URL"],
+                         API_KEY="424242", # placeholder
                          polite_email = scrape_config["polite_email"], 
                          max_retry = scrape_config["max_retry"],
                          polite_wait = scrape_config["polite_wait"],
@@ -526,11 +640,12 @@ def process_OpenAlex_from_OAids(scrape_config, oa_ids):
     n_files = len(files)
     temp_df = None
     batch_done = 0
-    ids_done = _index_scraped_ids(output_dir)
-    logger.debug(f"Searching {output_dir} for existing scrape data")
-    logger.debug(f"N. Ids before cut{len(oa_ids)}")
-    oa_ids = [x for x in oa_ids if x not in ids_done["id_OpenAlex"]]
-    logger.debug(f"N. Ids after cut{len(oa_ids)}")
+    # TODO change parent value to config setting
+    #ids_done = _index_scraped_ids(output_dir, parent=1)
+    #logger.debug(f"Searching {output_dir} for existing scrape data")
+    #logger.info(f"N. Ids before cut{len(oa_ids)}")
+    #oa_ids = [x for x in oa_ids if x not in ids_done["id_OpenAlex"]]
+    logger.info(f"N. Ids after cut{len(oa_ids)}")
     
     logger.info(f"Gathering details from OpenAlex for {len(oa_ids)} ids in {math.ceil(len(oa_ids) / buffer_size)} batches")
 

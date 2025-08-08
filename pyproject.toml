@@ -16,6 +16,8 @@ dependencies = [
 "hf_xet",
 "dask",
 "dask[distributed]",
+"duckdb",
+
 ]
 
 [build-system]

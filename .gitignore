@@ -12,6 +12,14 @@ alpha/
 figures/
 config/
 config.toml
+/config.toml
 scrape_citations.py
 preprocess.py
 helpers.py
+generate_descriptives.py
+cache/
+env.yml
+colab/
+data_staging.py 
+load_test.py
+data/
