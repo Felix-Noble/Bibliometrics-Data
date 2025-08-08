@@ -18,7 +18,7 @@ if __name__ == "__main__":
     pipeline_config = get_pipeline_config()
     scrape_config = get_scrape_config()
     pipeline_config["journals"] = journals_long
-    scrape_output_dir = scrape_config["output_dir"]
+    scrape_output_dir = pipeline_config["scrape_output_dir"]
     # setup_logger(logger, scrape_config["log"])
 
     """start_year = scrape_config["start_year"]

@@ -144,10 +144,6 @@ def replace_empty_str_NA(value):
     return pd.NA if len(temp) < 1 else value
 
 if __name__ == "__main__":
-    #dask.config.set({"distributed.worker.memory.target": False})
-    #dask.config.set({"distributed.worker.memory.spill": False})
-    #dask.config.set({"distributed.worker.memory.pause": False})
-    #dask.config.set({"distributed.worker.memory.terminate": False})
     # testing#
     # --- Configuration ---
     SCHEDULER_ADDRESS = 'tcp://127.0.0.1:8786'
@@ -178,11 +174,9 @@ if __name__ == "__main__":
     pipeline_config = get_pipeline_config()
     config = get_feature_extract_config()
     setup_logger(logger, config["log"])
-    print(pipeline_config)
-    print(config)
     journal = config["journal"]
 
-    output_dir = pipeline_config["features_db_loc"] / journal
+    output_dir = pipeline_config["features_db_dir"] / journal
     os.environ['MALLOC_TRIM_THRESHOLD_'] = '1'
     
     client = Client(n_workers=4, threads_per_worker=1)
@@ -220,35 +214,26 @@ if __name__ == "__main__":
     ddf["title_abstract"] = ddf["title_abstract"].apply(clean_func, meta=("title_abstract", "string"))
     cache_ddf(ddf)
     ddf = read_ddf()
+
     ddf = ddf.set_index("id_OpenAlex") 
-    total_mem_gb = ddf.memory_usage(deep=True).sum().compute() / 1e9
-    npartitions = int(total_mem_gb // 0.05) + 1
+    #total_mem_gb = ddf.memory_usage(deep=True).sum().compute() / 1e9
+    #npartitions = int(total_mem_gb // 0.05) + 1
     cache_ddf(ddf, npartitions=64)
     ddf = read_ddf()
+
     logger.info("Adding embeddings")
     embeddings = get_embeddings(ddf, model)
-    print(embeddings.index.name)
-    print(ddf.index.name)
     ddf = ddf.merge(embeddings, left_index=True, right_index=True, how="left")
+
     cache_ddf(ddf)
     ddf = read_ddf()
-    
-    #ddf = ddf.persist()
-    
-    #progress(ddf)
-    
-        #ddf = ddf.persist()
-    #progress(ddf) 
 
-    #create_id_ref_map(ddf)
-    #ddf["referenced_works_OpenAlex"] = ddf["referenced_works_OpenAlex"].apply(lambda x : f"[{','.join(x)}]", meta=("referenced_works_OpenAlex", "string"))
     ddf.columns = ddf.columns.str.strip()
-   # ddf = ddf.drop_duplicates(subset=["id_OpenAlex"])
+    #ddf = ddf.drop_duplicates(subset=["id_OpenAlex"])
     #ddf = ddf.set_index("id_OpenAlex")
     logger.info(f"Saving ddf | nrows ~ | cols: {ddf.columns}")
-    #logger.debug(f"cols: {ddf.columns}")
+
     #logger.info(f"N. Na's in referenced works col: {len(ddf['referenced_works_count_OpenAlex'].dropna().persist())}"
-    ddf = ddf.reset_index()
     out = ddf.to_parquet(
                 output_dir / "parquet",
                 engine='pyarrow',
@@ -286,5 +271,3 @@ if __name__ == "__main__":
     logger.info("Closing Dask Client")
 
     client.close()
-
-   

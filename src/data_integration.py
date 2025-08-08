@@ -128,7 +128,8 @@ if __name__ == "__main__":
     from utils.setup_logging import setup_logger
     config = get_integration_config()
     pipeline_config = get_pipeline_config()
-    config["output_dir"] = pipeline_config["integrated_db_loc"]
+    config["input_dir"] = pipeline_config["scrape_output_dir"]
+    config["output_dir"] = pipeline_config["integrated_db_dir"]
 
     setup_logger(logger, config["log"])
 

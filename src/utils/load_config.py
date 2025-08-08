@@ -111,37 +111,34 @@ def _load_config(path: Path = None) -> dict:
 def get_pipeline_config():
     cfg = _load_config()
     
-    step_name = cfg["pipeline"]["names"]["pipeline"]
+    step_name = "pipeline" 
     pipeline_config = cfg[step_name]
     type_dict = {"journals": (list, str),
-                 "integrated_db_loc": str,
-                 "features_db_loc": str,
+                 "scrape_output_dir":str,
+                 "integrated_db_dir": str,
+                 "features_db_dir": str,
                  "start_year":int,
                  "end_year":int,
-                 "names": {"pipeline": str,
-                           "scrape": str,
-                           "preprocess": str,
-                           "feature_extraction": str}}
+                 }
     # Add univesally applicable type dicts to specific dict 
     type_dict = type_dict | general_type_dict
     config_init_check(pipeline_config, type_dict, step_name)
 
-    for key in ["integrated_db_loc", "features_db_loc"]:
+    for key in ["scrape_output_dir", "integrated_db_dir", "features_db_dir"]:
         pipeline_config[key] = Path(os.path.expanduser(pipeline_config[key]))
-
 
     return pipeline_config
 
 def get_scrape_config():
     cfg = _load_config()
-    step_name = cfg["pipeline"]["names"]["scrape"]
+    step_name = "scrape"
     scrape_config = cfg["scrape"]
-    type_dict = {"polite_email": str,
+    type_dict = {
+                 "polite_email": str,
                  "OPENALEX_BASE_URL": str,
                  "CROSSREF_BASE_URL": str,
                  "S2_BASE_URL": str,
                  "S2_API_KEY": str,
-                 "output_dir": str,
                  "buffer_size": int,
                  "max_retry": int,
                  "polite_wait": float,
@@ -160,98 +157,31 @@ def get_scrape_config():
     # Critical Checks # 
     if scrape_config["start_year"] - scrape_config["end_year"] == 0:
         raise ValueError(f'No difference between start_year : {scrape_config["start_year"]} and end_year : {scrape_config["end_year"]} check config')
-    
-    # Type alterations #
-    for key in ["output_dir"]:
-        scrape_config[key] = Path(os.path.expanduser(scrape_config[key]))
 
     return cfg["scrape"]
 
 def get_integration_config():
     cfg = _load_config()
-    step_name = cfg["pipeline"]["names"]["integration"]
+    step_name = "integration"
     integration_config = cfg[step_name]
-    type_dict = {"input_dir": str,
-                 "output_dir": str,
-                 "journal":str,
+    type_dict = {
+                "journal":str,
                  }
     type_dict = type_dict | general_type_dict
     config_init_check(integration_config, type_dict, step_name)
 
-    # Return filepaths as Path types
-    for key in ["input_dir", "output_dir"]:
-        integration_config[key] = Path(integration_config[key])
-
     return integration_config
-
-def get_preprocess_config():
-    cfg = _load_config()
-    step_name = cfg["pipeline"]["names"]["preprocess"]
-    prep_config = cfg[step_name]
-
-    # Type checks 
-    type_dict = {"input_dir": str,
-                 "output_dir": str,
-                 "problem_chars": list,
-                 "chunk_size": int,
-                 "buffer_size": int,
-                 "data_cols" : list,
-                 "cols_to_clean": list}
-    # Add univesally applicable type dicts to specific dict 
-    type_dict = type_dict | general_type_dict
-    config_init_check(prep_config, type_dict, step_name)
-
-    # Type of contents check
-    for array_name in ["problem_chars", "data_cols", "cols_to_clean"]:
-        for (i,char) in enumerate(prep_config[array_name]):
-            if not isinstance(char, str):
-                raise TypeError(f'Expected string contents for {array_name} array, got {type(char)} at index {i}')
-    
-    # correct contents checks
-    for colname in prep_config["cols_to_clean"]:
-        if colname not in prep_config["data_cols"]:
-            raise ValueError(f'Clean column {colname} not in data_cols : {prep_config["data_cols"]}')
-
-    # Exists checks 
-    if not os.path.exists(prep_config["input_dir"]):
-            raise FileNotFoundError(f'Input dir does not exist: {prep_config["input_data"]}')
-
-    # Return filepaths as Path types
-    for key in ["input_dir", "output_dir"]:
-        prep_config[key] = Path(prep_config[key])
-    
-    return prep_config
 
 def get_feature_extract_config():
     cfg = _load_config()
     extraction_config = cfg["feature_extraction"]
-    step_name = cfg["pipeline"]["names"]["feature_extraction"]
+    step_name="feature_extraction"
 
     type_dict = {
                  "HuggingFace_model_name": str,
                  "journal": str,
-
                  }
     type_dict = type_dict | general_type_dict
     config_init_check(extraction_config, type_dict, step_name)
 
-    # Return filepaths as Path types
-    
     return extraction_config
-
-def get_data_staging_config():
-    cfg = _load_config()
-    step_name = "Staging"
-    pipeline_config = cfg["staging"]
-    type_dict = {
-        "database_loc": str,
-    }
-                 
-    # Add univesally applicable type dicts to specific dict 
-    type_dict = type_dict | general_type_dict
-    config_init_check(pipeline_config, type_dict, step_name)
-
-    for key in ["database_loc"]:
-        pipeline_config[key] = Path(pipeline_config[key])
-
-    return pipeline_config
