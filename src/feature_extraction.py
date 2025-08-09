@@ -145,12 +145,6 @@ def replace_empty_str_NA(value):
 
 if __name__ == "__main__":
     # testing#
-    # --- Configuration ---
-    SCHEDULER_ADDRESS = 'tcp://127.0.0.1:8786'
-    DASHBOARD_ADDRESS = 'http://127.0.0.1:8787'
-    #launch_scheduler()
-    N_WORKERS = 4
-    #launch_workers_with_jemalloc(N_WORKERS)
 
     from utils.load_config import get_feature_extract_config, get_pipeline_config
     from utils.setup_logging import setup_logger

@@ -1,133 +1,103 @@
-# 📚 AcademicAbstracts — Data Processing Pipeline
+# Academic Abstracts Pipeline
 
-**Version:** 0.2.1  
-**Author:** Felix Noble  
+## Overview
+This repository contains a **modular, end-to-end data pipeline** for:
+- **Scraping** academic metadata and abstracts from multiple scholarly APIs
+- **Integrating** raw scraped data into a unified, deduplicated database
+- **Extracting features** such as yearly citation statistics and semantic embeddings
+- **Generating descriptive analytics** and visualizations
 
-A modular, scalable **data processing pipeline** for collecting, integrating, and preparing bibliometric data from open-source academic databases (**OpenAlex**, **CrossRef**, **Semantic Scholar**) for downstream machine learning analysis.
-
----
-
-## 🚀 Overview
-
-The **data processing** part of this project handles the **entire ETL (Extract, Transform, Load)** workflow for academic bibliometrics:
-
-1. **Scraping** — Retrieve raw metadata, abstracts, references, and citations from multiple APIs.
-2. **Integration** — Merge and deduplicate data into a unified, partitioned Parquet database.
-3. **Preprocessing** — Clean and standardize text, dates, and identifiers.
-4. **Feature Extraction** — Generate yearly citation statistics and compute **semantic embeddings** for abstracts using `sentence-transformers`.
-5. **Descriptive Analysis** — Produce histograms and scatter plots for exploratory data analysis.
-
-The processed datasets are stored in **efficient, queryable Parquet format** for use in ML pipelines (e.g., the model training code in the analysis repo).
+The system is designed for **scalability** (via Dask) and **extensibility** (modular config-driven architecture).
 
 ---
 
-## ✨ Key Capabilities
+## Features
 
-### **1. Multi-Source Academic Data Scraping**
-- **OpenAlex API** — Journal search, work retrieval, reference and citation expansion.
-- **CrossRef API** — Journal ISSN lookup and publication metadata.
-- **Semantic Scholar API** — Paper metadata, citation counts, and references.
-- **Rate-limit aware** — Automatic polite waits and retry logic.
-- **Batch processing** — Configurable buffer sizes for large-scale scraping.
-
-### **2. Data Integration**
-- Merge multiple CSV batches into a **single Dask DataFrame**.
-- Deduplicate by `id_OpenAlex`.
-- Partition and store as **Parquet** for fast downstream access.
-- Schema enforcement for consistent typing.
-
-### **3. Preprocessing**
-- Convert publication dates to `datetime` and integer formats.
-- Add yearly median citation statistics.
-- Label papers as **above/below median citations** for their publication year.
-- Clean abstracts and titles (remove problem characters, normalize whitespace).
-
-### **4. Feature Extraction**
-- Generate **semantic embeddings** for `title + abstract` using HuggingFace models (e.g., `all-MiniLM-L6-v2`).
-- Store embeddings alongside metadata in the Parquet database.
-- Fully parallelized with **Dask Distributed**.
-
-### **5. Descriptive Statistics & Visualisation**
-- Histograms for citation counts, median citations, and binary labels.
-- Scatter plots of metrics vs. publication year.
-- Outputs saved to `/figures` for inclusion in reports and README.
+### 1. Config-Driven Architecture
+- Centralized configuration in `config/config.toml`
+- Strong **type and key validation** for configs (`utils/load_config.py`)
+- Supports **multiple journals** and **year ranges**
+- Easily switch between datasets without changing code
 
 ---
 
-## ⚙️ Configuring the Pipeline
+### 2. Data Scraping
+**Implemented:**
+- **OpenAlex API**:
+  - Search by journal and year
+  - Retrieve metadata, abstracts, citation counts, references, and topics
+  - Handles polite API usage (rate limits, retries, adaptive wait times)
+  - Saves results in **batch CSV files**
+- **Reference Expansion**:
+  - After initial scrape, fetches metadata for all referenced works
+- **Duplicate Avoidance**:
+  - Tracks already-scraped IDs to prevent redundant API calls
 
-All modules are controlled via `config/config.toml`.  
-This file defines **API settings, query terms, output locations, and processing parameters**.
-
-### **Example `config.toml` Structure**
-```toml
-[pipeline]
-journals = ["American Chemical Society", "Science", "Mind", "The Lancet", "Cell", "Psychological Review"]
-integrated_db_loc = "~/data/abstracts_integrated"
-features_db_loc = "~/data/abstracts_integrated/"
-
-[pipeline.log]
-file = "ERROR"
-console = "INFO"
-
-[scrape]
-polite_email = "your.email@example.com"
-OPENALEX_BASE_URL = "https://api.openalex.org"
-CROSSREF_BASE_URL = "https://api.crossref.org"
-S2_BASE_URL = "https://api.semanticscholar.org/graph/v1"
-S2_API_KEY = "424242"
-output_dir = "~/data/abstracts/"
-buffer_size = 100
-max_retry = 3
-polite_wait = 1.0
-fail_wait = 10.0
-rate_limit_wait = 60.0
-timeout_wait = 5.0
-start_year = 2023
-end_year = 2022
-
-S2_queries = [
-    "paperId", "externalIds", "url", "title", "abstract", "publicationDate",
-    "journal", "isOpenAccess", "openAccessPdf", "citationCount", "referenceCount",
-    "citations.paperId", "citations.externalIds"
-]
-
-OpenAlex_queries = [
-    "publication_date", "id", "doi", "type", "open_access", "source",
-    "cited_by_count", "cited_by_percentile_year_OpenAlex",
-    "citation_normalized_percentile_OpenAlex", "referenced_works",
-    "title", "abstract_inverted_index", "topics"
-]
-
-[scrape.log]
-console = "INFO"
-file = "ERROR"
-
-[integration]
-input_dir = ""
-output_dir = ""
-journal = ""
-
-[integration.log]
-console = "INFO"
-file = "ERROR"
-
-[preprocess.log]
-file = "ERROR"
-console = "INFO"
-
-[feature_extraction]
-HuggingFace_model_name = "all-MiniLM-L12-v2"
-journal = "test"
-
-[feature_extraction.log]
-console = "INFO"
-file = "ERROR"
-```
+**Partially Implemented / Planned:**
+- 🚧 **CrossRef API** integration for DOI discovery
+- 🚧 **Semantic Scholar API** integration for additional metadata
+- 🚧 **Citation Expansion** (fetch citing papers in addition to references)
+- 🚧 **Parallelized multi-journal scraping** with distributed workers
 
 ---
 
-## 🔄 How OpenAlex Queries Are Renamed
+### 3. Data Integration
+**Implemented:**
+- Reads all raw CSV batches for a journal
+- Cleans and deduplicates records by `id_OpenAlex`
+- Converts to **partitioned Parquet** format for efficient downstream processing
+- Uses **Dask** for scalable processing
+
+**Planned:**
+- 🚧 Merge data from multiple APIs into a **single enriched record**
+- 🚧 Automated schema alignment across sources
+
+---
+
+### 4. Feature Extraction
+**Implemented:**
+- **Date normalization** and extraction of `publication_year`
+- **Yearly citation statistics**:
+  - Median citations per year
+  - Binary flag for "higher than median" citation count
+- **Text cleaning** for abstracts and titles
+- **Sentence embeddings**:
+  - Uses HuggingFace `SentenceTransformer` models
+  - Configurable model name
+  - Stores embeddings as 384-dimensional float vectors
+- **Caching** intermediate Dask DataFrames to disk for iterative processing
+
+**Planned:**
+- 🚧 Additional bibliometric features (e.g., h-index, citation velocity)
+- 🚧 Topic modeling (LDA, BERTopic)
+
+---
+
+### 5. Descriptive Analytics
+**Implemented:**
+- Histograms for citation metrics
+- Scatter plots of citation metrics vs. publication year
+- Saves figures to `figures/` directory
+
+**Planned:**
+- 🚧 Interactive dashboards (Plotly/Dash)
+- 🚧 Time-series trend analysis
+
+---
+
+## Tech Stack
+- **Python 3.10+**
+- **Dask** for scalable data processing
+- **DuckDB** for fast local SQL queries
+- **Pandas** for tabular data manipulation
+- **SentenceTransformers** for embeddings
+- **Matplotlib** for static visualizations
+- **PyArrow** for Parquet I/O
+- **TOML** for configuration
+
+---
+
+## Project Structure## 🔄 How OpenAlex Queries Are Renamed
 
 The pipeline automatically **maps raw OpenAlex API field names** to **more recognisable database column names** before saving to the final Parquet database.
 
@@ -137,11 +107,57 @@ The pipeline automatically **maps raw OpenAlex API field names** to **more recog
 | `cited_by_count`            | `citation_count_OpenAlex`        | Total citations received |
 | `referenced_count`          | `reference_count_OpenAlex`       | Number of references in the paper |
 | `referenced_works`          | `referenced_works_OpenAlex`      | List of referenced work IDs |
-| `abstract_inverted_index`   | `abstract_OpenAlex`               | Full abstract text (de-inverted) |
+| `abstract_inverted_index`   | `abstract_OpenAlex`              | Full abstract text (de-inverted) |
 | `source`                    | `source` (dict)                  | Journal/source metadata |
 
-This mapping is defined in the `OpenAlexHandler.format_names` dictionary in `scrape2.py` and ensures **consistent, human-readable column names** across the pipeline.
+This mapping is defined in the `OpenAlexHandler.format_names` dictionary in `scrape.py` and ensures **consistent, human-readable column names** across the pipeline.
 
 ---
 
 ## 🛠️ Project Structure
+~~~
+src/
+├── scrape2.py                 # OpenAlex scraping + reference expansion
+├── data_integration_export.py # CSV → Parquet integration
+├── feature_extraction.py      # Feature engineering + embeddings
+├── descriptives.py            # Histograms & scatter plots
+├── utils/
+│     ├── load_config.py       # Config loading & validation
+│     ├── setup_logging.py     # Logger setup
+config/
+└── config.toml                # Pipeline configuration
+logs/                          # Runtime logs
+figures/                       # Generated plots
+~~~
+---
+
+## Example Workflow
+```bash
+# 1. Configure the Pipeline
+# Edit config/config.toml to set journals, directories, and year range
+# Example:
+# [pipeline]
+# journals = ["American Chemical Society", "Science"]
+# scrape_output_dir = "~/data/abstracts"
+# integrated_db_dir = "~/data/abstracts_integrated"
+# features_db_dir = "~/data/abstracts_features"
+# start_year = 2023
+# end_year = 2022
+
+# 2. Scrape Data from OpenAlex
+# Fetches metadata, abstracts, and references for each journal/year
+python src/scrape.py
+
+# 3. Integrate Data
+# Reads all CSV batches, cleans, deduplicates, and writes Parquet
+python src/data_integration_export.py
+
+# 4. Extract Features
+# Adds yearly citation stats, cleans text, generates embeddings
+python src/feature_extraction.py
+
+# 5. Generate Descriptive Plots
+# Produces histograms and scatter plots for citation metrics
+python src/descriptives.py
+```
+---

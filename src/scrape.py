@@ -10,7 +10,6 @@ import os
 import logging
 import math
 from pathlib import Path
-from src.utils.setup_logging import setup_logger
 import ast
 
 ## Logger ##
@@ -660,56 +659,41 @@ def process_OpenAlex_from_OAids(scrape_config, oa_ids):
 
 if __name__ == "__main__":
     ### Testing ###
+    from utils.load_config import get_pipeline_config, get_scrape_config
+    from utils.setup_logging import setup_logger
+    pipeline_config = get_pipeline_config()
 
-    dois = ["10.1587/TRANSINF.2014DAP0007", "10.6138/JIT.2015.16.3.20140918"]
-    from utils.load_config import get_scrape_config
     scrape_config = get_scrape_config()
-                    
-    OPENALEX_BASE_URL = scrape_config["OPENALEX_BASE_URL"]
-    CROSSREF_BASE_URL =scrape_config["CROSSREF_BASE_URL"]
-    S2_BASE_URL = scrape_config["S2_BASE_URL"]
-    S2_API_KEY = scrape_config["S2_API_KEY"]
-
-    polite_email = scrape_config["polite_email"]
-    buffer_size = scrape_config["buffer_size"]
-    start_year = scrape_config["start_year"]
-    end_year = scrape_config["end_year"]
-
-    OA_query_terms = scrape_config["OpenAlex_queries"]
-
-    OA = OpenAlexHandler(OPENALEX_BASE_URL, polite_email, polite_wait=0.1)
-    # TODO: change the output dir here to a pipeline config option 
-
-    for journal in scrape_config["journals"]:
-        output_dir = scrape_config["output_dir"] / journal
-
-        os.makedirs(output_dir, exist_ok=True)
-        files = os.listdir(output_dir)
-        n_files = len(files)
-        temp_df = None
-        batch_done = 0
-        
-        for year in np.linspace(start_year, end_year, np.abs(start_year - end_year) + 1, dtype=int):
-            # IDs = OA.search_openalex(journal, year)
-            try:
-                DOIs = pd.read_csv(f"E:/Dropbox/4. Codebase/AcademicAbstracts/data/raw/{journal}/{year}.csv")["doi"].values
-            except Exception as e:
-                continue
-            # OAIDs = [x["id_OpenAlex"] for x in IDs]
-            # data = OA.get_details_by_oaid(OAIDs, OA_query_terms) 
-            # TODO: add here a search for citation dois from S2
-
-            data = OA.get_details_by_doi(DOIs, OA_query_terms)
-            if temp_df is None:
-                temp_df = data
-            else:
-                temp_df = pd.concat([temp_df, data], axis=0)
-        
-            if temp_df.shape[0] >= buffer_size or year == end_year:
-                batch_done += 1
-                temp_df.to_csv(output_dir / f"Batch{n_files+batch_done}.csv", index=False)
-                temp_df = pd.DataFrame([], columns=temp_df.columns)
-            
     
+    scrape_output_dir = pipeline_config["scrape_output_dir"]
+    # setup_logger(logger, scrape_config["log"])
 
-        
+    """start_year = scrape_config["start_year"]
+    end_year = scrape_config["end_year"]
+    for journal in pipeline_config["journals"]:
+        scrape_config["journal"] = journal
+        for year in np.linspace(start_year, end_year, abs(end_year-start_year)+1, dtype=np.int16):
+            print(year)
+            scrape_config["year"] = year
+            search_OpenAlex_journal_year(scrape_config)
+    
+"""
+
+    for journal in pipeline_config["journals"]:
+        ids = pd.Series([])
+        finished = [] 
+        for file in list((scrape_output_dir / journal / "references").glob("*.csv"))[0:]:
+            print(f"Processing file: {file}")
+            file = pd.read_csv(file)
+            finished += file["id_OpenAlex"].dropna().to_list()
+            ref_lists = file["referenced_works_OpenAlex"].dropna().apply(ast.literal_eval)
+            # TODO: add empty ref lists as None instead of [] so they are dropped with .dropna()
+            ref_lists = [pd.Series(ls) for ls in ref_lists if len(ls) > 0]
+            if len(ref_lists) > 1:
+                ref_lists = pd.concat([pd.Series(ls) for ls in ref_lists if len(ls) > 0])
+            
+                ids = pd.concat([ids, ref_lists])
+        ids = list(set(ids) - set(finished))
+        scrape_config["output_dir"] = scrape_output_dir / journal / "references"
+
+        process_OpenAlex_from_OAids(scrape_config, ids)
