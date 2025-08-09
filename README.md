@@ -17,7 +17,6 @@ The system is designed for **scalability** (via Dask) and **extensibility** (mod
 - Centralized configuration in `config/config.toml`
 - Strong **type and key validation** for configs (`utils/load_config.py`)
 - Supports **multiple journals** and **year ranges**
-- Easily switch between datasets without changing code
 
 ---
 
@@ -38,7 +37,7 @@ The system is designed for **scalability** (via Dask) and **extensibility** (mod
 - 🚧 **Semantic Scholar API** integration for additional metadata
 - 🚧 **Citation Expansion** (fetch citing papers in addition to references)
 - 🚧 **Parallelized multi-journal scraping** with distributed workers
-
+- 🚧 **Processing of entire OpenAlex s3 dataset**
 ---
 
 ### 3. Data Integration
@@ -150,7 +149,7 @@ python src/scrape.py
 
 # 3. Integrate Data
 # Reads all CSV batches, cleans, deduplicates, and writes Parquet
-python src/data_integration_export.py
+python src/data_integration.py
 
 # 4. Extract Features
 # Adds yearly citation stats, cleans text, generates embeddings
